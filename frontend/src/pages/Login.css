@@ -1,0 +1,81 @@
+/* Contenedor principal centrado */
+.login {
+  max-width: 400px;
+  margin: 3rem auto;
+  padding: 2rem;
+  background-color: rgb(85, 85, 85);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border-radius: 8px;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+}
+
+/* Título */
+.login h1 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  color: #df9306;
+}
+
+/* Formulario - inputs y botón */
+.login form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.login input {
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 1.8px solid #ccc;
+  border-radius: 6px;
+  transition: border-color 0.3s ease;
+}
+
+.login input:focus {
+  border-color: #df9306;
+  outline: none;
+}
+
+.login button {
+  background-color: #df9306;
+  color: white;
+  border: none;
+  padding: 0.85rem 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.login button:hover {
+  background-color: #0e0e0e;
+}
+
+/* Mensaje de error */
+.login p {
+  text-align: center;
+  font-size: 0.9rem;
+  color: #dc3545;
+  margin-top: 0.8rem;
+}
+
+/* Responsive para móviles */
+@media (max-width: 480px) {
+  .login {
+    margin: 1.5rem 1rem;
+    padding: 1.5rem;
+  }
+
+  .login input {
+    font-size: 0.95rem;
+    padding: 0.7rem 0.9rem;
+  }
+
+  .login button {
+    font-size: 1rem;
+    padding: 0.75rem 0.9rem;
+  }
+}
