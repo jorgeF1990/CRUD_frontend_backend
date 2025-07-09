@@ -1,35 +1,76 @@
-import axios from 'axios';
+import axios from "axios";
 
-// Crear instancia de Axios con configuración
+// Configuración de la URL base
+const getBaseURL = () => {
+  if (import.meta.env.PROD) {
+    return import.meta.env.VITE_API_BASE_URL || "http://tu-dominio.com/api";
+  }
+  
+  // En desarrollo, usa IP explícita para evitar problemas IPv6
+  return "http://127.0.0.1:2222/api";
+};
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:2222/api',
+  baseURL: getBaseURL(),
   timeout: 10000,
-  withCredentials: true, // Necesario para cookies/autenticación
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
 
-// Interceptor para agregar token de autorización
+// Interceptor de solicitudes
 API.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('token');
+  (config) => {
+    const token = localStorage.getItem("token");
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers["Authorization"] = `Bearer ${token}`;
     }
+    
+    // Log para depuración
+    if (import.meta.env.DEV) {
+      console.log(`➡️ Enviando solicitud a: ${config.url}`);
+    }
+    
     return config;
   },
-  error => Promise.reject(error)
+  (error) => {
+    console.error("❌ Error en solicitud:", error);
+    return Promise.reject(error);
+  }
 );
 
-// Interceptor para manejar errores globalmente si se desea
+// Interceptor de respuestas
 API.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.response) {
-      console.error("API Error:", error.response.status, error.response.data);
-    } else if (error.request) {
-      console.error("API sin respuesta:", error.request);
-    } else {
-      console.error("Error general en API:", error.message);
+  (response) => {
+    if (import.meta.env.DEV) {
+      console.log(`⬅️ Respuesta recibida de: ${response.config.url}`, response);
     }
+    return response;
+  },
+  (error) => {
+    const errorInfo = {
+      message: error.message,
+      code: error.code,
+      config: error.config,
+      response: error.response
+        ? {
+            status: error.response.status,
+            data: error.response.data
+          }
+        : null
+    };
+    
+    console.error("❌ Error en la API:", errorInfo);
+    
+    // Manejo especial para errores de conexión
+    if (error.code === "ECONNREFUSED" || error.message.includes("Network Error")) {
+      return Promise.reject({
+        ...error,
+        isNetworkError: true,
+        message: "No se pudo conectar con el servidor"
+      });
+    }
+    
     return Promise.reject(error);
   }
 );

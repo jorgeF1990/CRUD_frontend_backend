@@ -6,27 +6,22 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Registro
 export const register = async (req, res) => {
   const { username, email, password } = req.body;
 
-  // Validación con Zod
   const validation = registerSchema.safeParse({ username, email, password });
   if (!validation.success) {
     return res.status(400).json({ error: validation.error.issues });
   }
 
   try {
-    // Verificar existencia de usuario por email o username
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
       return res.status(400).json({ error: "El correo o nombre de usuario ya están registrados." });
     }
 
-    // Encriptar contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Crear nuevo usuario
     const newUser = new User({ username, email, password: hashedPassword });
     await newUser.save();
 
@@ -43,11 +38,9 @@ export const register = async (req, res) => {
   }
 };
 
-// Login
 export const login = async (req, res) => {
   const { email, password } = req.body;
 
-  // Validación con Zod
   const validation = loginSchema.safeParse({ email, password });
   if (!validation.success) {
     return res.status(400).json({ error: validation.error.issues });
@@ -59,18 +52,28 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: "Credenciales inválidas." });
     }
 
-    // Comparar contraseña
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ error: "Credenciales inválidas." });
     }
 
-    // Generar token JWT
+    if (!process.env.JWT_SECRET) {
+      console.error("ERROR: JWT_SECRET no está definido");
+      return res.status(500).json({ error: "Error de configuración del servidor" });
+    }
+
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1h"
     });
 
-    res.json({ token });
+    res.json({ 
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        username: user.username
+      }
+    });
   } catch (error) {
     console.error("Error en login:", error);
     res.status(500).json({ error: "Error en el servidor." });

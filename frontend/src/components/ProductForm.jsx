@@ -1,60 +1,122 @@
-import { useState } from "react";
-import { API } from "../api/apiInstance";
+import React from "react";
+import ImageManager from "./ImageManager";
 
-const ProductForm = ({ onProductAdded }) => {
-  const [form, setForm] = useState({ name: "", description: "", price: "", stock: "" });
-  const [images, setImages] = useState([]);
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleImageChange = (e) => {
-    setImages(e.target.files);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await API.post("/products", {
-        name: form.name,
-        description: form.description,
-        price: parseFloat(form.price),
-        stock: parseInt(form.stock),
-      });
-
-      const productId = res.data._id;
-
-      if (images.length > 0) {
-        const formData = new FormData();
-        for (let file of images) {
-          formData.append("images", file);
-        }
-
-        await API.post(`/products/${productId}/images`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-      }
-
-      alert("Producto agregado correctamente");
-      setForm({ name: "", description: "", price: "", stock: "" });
-      setImages([]);
-      if (onProductAdded) onProductAdded();
-    } catch (error) {
-      console.error("Error al agregar producto:", error);
-      alert("Error al agregar producto");
-    }
-  };
-
+const ProductForm = ({ 
+  form, 
+  onFormChange,
+  onImageAdd,
+  onImageRemove,
+  onSubmit,
+  onCancel,
+  existingImages = [],
+  newImages = [],
+  loading,
+  error,
+  editingId
+}) => {
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Agregar producto</h2>
-      <input name="name" placeholder="Nombre" onChange={handleChange} value={form.name} required />
-      <input name="description" placeholder="Descripción" onChange={handleChange} value={form.description} />
-      <input name="price" type="number" placeholder="Precio" onChange={handleChange} value={form.price} required />
-      <input name="stock" type="number" placeholder="Stock" onChange={handleChange} value={form.stock} />
-      <input type="file" multiple onChange={handleImageChange} />
-      <button type="submit">Agregar</button>
+    <form onSubmit={onSubmit} className="dashboard-form" noValidate>
+      <h2>{editingId ? "Editar producto" : "Agregar nuevo producto"}</h2>
+      
+      <div className="form-group">
+        <label htmlFor="name">Nombre *</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          placeholder="Nombre del producto"
+          value={form.name}
+          onChange={onFormChange}
+          autoComplete="name"
+          required
+          disabled={loading}
+        />
+      </div>
+      
+      <div className="form-group">
+        <label htmlFor="description">Descripción</label>
+        <textarea
+          id="description"
+          name="description"
+          placeholder="Descripción del producto"
+          value={form.description}
+          onChange={onFormChange}
+          autoComplete="off"
+          disabled={loading}
+          rows="3"
+        />
+      </div>
+      
+      <div className="form-row">
+        <div className="form-group">
+          <label htmlFor="price">Precio *</label>
+          <input
+            type="number"
+            id="price"
+            name="price"
+            placeholder="0.00"
+            value={form.price}
+            onChange={onFormChange}
+            autoComplete="off"
+            min="0"
+            step="0.01"
+            required
+            disabled={loading}
+          />
+        </div>
+        
+        <div className="form-group">
+          <label htmlFor="stock">Stock</label>
+          <input
+            type="number"
+            id="stock"
+            name="stock"
+            placeholder="0"
+            value={form.stock}
+            onChange={onFormChange}
+            autoComplete="off"
+            min="0"
+            step="1"
+            disabled={loading}
+          />
+        </div>
+      </div>
+      
+      <ImageManager
+        existingImages={existingImages}
+        newImages={newImages}
+        onRemoveImage={onImageRemove}
+        onAddImages={onImageAdd}
+        loading={loading}
+      />
+      
+      <div className="form-actions">
+        <button 
+          type="submit" 
+          className="primary-btn"
+          disabled={loading || !form.name || !form.price}
+        >
+          {loading ? (
+            <>
+              <span className="spinner"></span>
+              Procesando...
+            </>
+          ) : editingId ? "Actualizar producto" : "Agregar producto"}
+        </button>
+        
+        {editingId && (
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            Cancelar
+          </button>
+        )}
+      </div>
+      
+      {error && <p className="error-message">{error}</p>}
     </form>
   );
 };

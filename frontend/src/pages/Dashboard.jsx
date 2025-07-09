@@ -1,208 +1,213 @@
-import React, { useState, useEffect } from "react";
-import { API } from "../api/apiInstance";
+import React, { useState, useEffect, useCallback } from "react";
+import ProductForm from "../components/ProductForm";
+import ProductList from "../components/ProductList";
+import { useProducts } from "../hooks/useProducts";
 import "./Dashboard.css";
 
 const Dashboard = () => {
-  const [products, setProducts] = useState([]);
-  const [form, setForm] = useState({ name: "", description: "", price: "", stock: "" });
-  const [images, setImages] = useState([]);
+  const { 
+    products, 
+    loading, 
+    error: productsError, 
+    createProduct, 
+    updateProduct, 
+    deleteProduct,
+    fetchProducts 
+  } = useProducts();
+  
+  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [form, setForm] = useState({ 
+    name: "", 
+    description: "", 
+    price: "", 
+    stock: "" 
+  });
+  const [existingImages, setExistingImages] = useState([]);
+  const [newImages, setNewImages] = useState([]);
   const [editingId, setEditingId] = useState(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetchProducts();
+  const [formError, setFormError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 6;
+  
+  // Función para normalizar URLs de imágenes
+  const normalizeImageUrl = useCallback((imgPath) => {
+    if (!imgPath) return null;
+    
+    // Si ya es una URL completa, no hacer cambios
+    if (/^https?:\/\//.test(imgPath)) {
+      return imgPath;
+    }
+    
+    // Construir URL completa basada en la ubicación del backend
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:2222';
+    
+    // Manejar rutas que ya empiezan con '/'
+    if (imgPath.startsWith('/')) {
+      return `${baseUrl}${imgPath}`;
+    }
+    
+    return `${baseUrl}/${imgPath}`;
   }, []);
 
-  const fetchProducts = async () => {
-    try {
-      const { data } = await API.get("/products");
-      setProducts(data);
-    } catch (err) {
-      console.error(err);
-      setError("No se pudieron cargar los productos.");
+  // Filtrar productos según término de búsqueda
+  useEffect(() => {
+    const filtered = products.map(product => ({
+      ...product,
+      // Normalizar URLs de imágenes
+      images: product.images ? 
+        product.images.map(img => normalizeImageUrl(img)) : 
+        []
+    }));
+    
+    const searched = filtered.filter(product => 
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    
+    setFilteredProducts(searched);
+    setCurrentPage(1); // Resetear a primera página al buscar
+  }, [products, searchTerm, normalizeImageUrl]);
+
+  // Calcular productos paginados
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+
+  // Manejar cambios en el formulario
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Manejar selección de imágenes
+  const handleImageAdd = (e) => {
+    const files = Array.from(e.target.files).slice(0, 5);
+    setNewImages(prev => [...prev, ...files]);
+  };
+
+  // Eliminar imagen (existente o nueva)
+  const handleImageRemove = (image, isNew = false) => {
+    if (isNew) {
+      setNewImages(prev => prev.filter(img => img !== image));
+    } else {
+      setExistingImages(prev => prev.filter(img => img !== image));
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleImageChange = (e) => {
-    setImages(e.target.files);
-  };
-
+  // Resetear formulario
   const resetForm = () => {
     setForm({ name: "", description: "", price: "", stock: "" });
-    setImages([]);
+    setExistingImages([]);
+    setNewImages([]);
     setEditingId(null);
-    setError("");
+    setFormError("");
   };
 
+  // Preparar formulario para edición
   const handleEdit = (product) => {
     setForm({
       name: product.name,
-      description: product.description,
+      description: product.description || "",
       price: product.price.toString(),
-      stock: product.stock.toString(),
+      stock: product.stock?.toString() || "",
     });
+    
+    // Normalizar URLs de imágenes existentes
+    const normalizedImages = product.images 
+      ? product.images.map(img => normalizeImageUrl(img))
+      : [];
+    
+    setExistingImages(normalizedImages);
+    setNewImages([]);
     setEditingId(product._id);
-    setImages([]);
-    setError("");
+    setFormError("");
+    
+    // Scroll al formulario
+    document.querySelector('.dashboard-form')?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Eliminar producto
   const handleDelete = async (id) => {
+    if (!window.confirm("¿Está seguro que desea eliminar este producto? Esta acción no se puede deshacer.")) {
+      return;
+    }
+    
     try {
-      await API.delete(`/products/${id}`);
+      await deleteProduct(id);
       fetchProducts();
     } catch (err) {
-      console.error(err);
-      setError("No se pudo eliminar el producto.");
+      setFormError("No se pudo eliminar el producto. Intente de nuevo.");
     }
   };
 
+  // Enviar formulario
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
+    setFormError("");
+
+    // Validaciones básicas
+    if (!form.name.trim() || !form.price) {
+      setFormError("Nombre y precio son campos obligatorios");
+      return;
+    }
 
     try {
-      const payload = {
+      const productData = {
         ...form,
         price: parseFloat(form.price),
-        stock: parseInt(form.stock),
+        stock: parseInt(form.stock) || 0,
+        images: existingImages
       };
 
-      const res = editingId
-        ? await API.put(`/products/${editingId}`, payload)
-        : await API.post("/products", payload);
-
-      // Si es un nuevo producto y hay imágenes, subirlas
-      if (!editingId && res?.data?._id && images.length > 0) {
-        const formData = new FormData();
-        Array.from(images).forEach((file) => formData.append("images", file));
-
-        await API.post(`/products/${res.data._id}/images`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+      if (editingId) {
+        await updateProduct(editingId, productData, newImages);
+      } else {
+        await createProduct(productData, newImages);
       }
 
+      // Actualizar lista y resetear formulario
       fetchProducts();
       resetForm();
     } catch (err) {
-      console.error(err);
-      setError("Ocurrió un error al guardar el producto.");
-    } finally {
-      setLoading(false);
+      setFormError("Ocurrió un error al guardar el producto: " + (err.message || "Intente de nuevo"));
     }
-  };
-
-  const getImageUrl = (path) => {
-    const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:2222";
-    return `${base}${path.startsWith("/") ? path : "/" + path}`;
   };
 
   return (
     <div className="dashboard-container">
-      <h1>Dashboard de Productos</h1>
+      <header className="dashboard-header">
+        <h1>Panel de Gestión de Productos</h1>
+        <p>Administra el catálogo de productos de tu tienda</p>
+      </header>
 
-      <form onSubmit={handleSubmit} className="dashboard-form" noValidate>
-        <h2>{editingId ? "Editar producto" : "Agregar nuevo producto"}</h2>
-
-        <input
-          type="text"
-          name="name"
-          placeholder="Nombre"
-          value={form.name}
-          onChange={handleChange}
-          autoComplete="name"
-          required
-        />
-        <input
-          type="text"
-          name="description"
-          placeholder="Descripción"
-          value={form.description}
-          onChange={handleChange}
-          autoComplete="off"
-        />
-        <input
-          type="number"
-          name="price"
-          placeholder="Precio"
-          value={form.price}
-          onChange={handleChange}
-          autoComplete="off"
-          min="0"
-          step="0.01"
-          required
-        />
-        <input
-          type="number"
-          name="stock"
-          placeholder="Stock"
-          value={form.stock}
-          onChange={handleChange}
-          autoComplete="off"
-          min="0"
-          step="1"
+      <div className="dashboard-content">
+        <ProductForm 
+          form={form}
+          onFormChange={handleFormChange}
+          onImageAdd={handleImageAdd}
+          onImageRemove={handleImageRemove}
+          onSubmit={handleSubmit}
+          onCancel={resetForm}
+          existingImages={existingImages}
+          newImages={newImages}
+          loading={loading}
+          error={formError || productsError}
+          editingId={editingId}
         />
 
-        {!editingId && (
-          <input
-            type="file"
-            multiple
-            accept="image/jpeg,image/png,image/jpg"
-            onChange={handleImageChange}
-            aria-label="Seleccionar imágenes del producto"
-          />
-        )}
-
-        <button type="submit" disabled={loading}>
-          {loading ? "Cargando..." : editingId ? "Actualizar" : "Agregar"}
-        </button>
-
-        {editingId && (
-          <button
-            type="button"
-            className="cancel-button"
-            onClick={resetForm}
-          >
-            Cancelar
-          </button>
-        )}
-
-        {error && <p className="error">{error}</p>}
-      </form>
-
-      <h2>Productos disponibles</h2>
-
-      {products.length === 0 ? (
-        <p>No hay productos disponibles.</p>
-      ) : (
-        <div className="product-list">
-          {products.map((product) => (
-            <div className="product-card" key={product._id}>
-              <strong>{product.name}</strong>
-              <p>{product.description}</p>
-              <p><strong>${product.price}</strong></p>
-              <p>Stock: {product.stock}</p>
-              {product.images?.length > 0 ? (
-                <img
-                  src={getImageUrl(product.images[0])}
-                  alt={`Imagen de ${product.name}`}
-                  className="product-image"
-                />
-              ) : (
-                <div className="no-image">Sin imagen</div>
-              )}
-              <button onClick={() => handleEdit(product)}>Editar</button>
-              <button onClick={() => handleDelete(product._id)} className="delete-button">Eliminar</button>
-            </div>
-          ))}
-        </div>
-      )}
+        <ProductList 
+          products={currentProducts}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          searchTerm={searchTerm}
+          onSearchChange={(e) => setSearchTerm(e.target.value)}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
+      </div>
     </div>
   );
 };

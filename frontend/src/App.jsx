@@ -6,11 +6,14 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Home from "./pages/Home.jsx";
 import Layout from "./components/Layout.jsx";
 import PrivateRoutes from "./routes/PrivateRoutes.jsx";
+import Products from "./pages/Products.jsx"; // ✅ Agregado correctamente
 
 const App = () => {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
+        <Route path="products" element={<Products />} />
+        
         {/* Rutas públicas */}
         <Route index element={<Home />} />
         <Route path="login" element={<Login />} />
